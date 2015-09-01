@@ -9,6 +9,7 @@ import java.net.URL;
 public class WebCache {
     private String base;
     private int minFileSize;
+    private String ext;
     
     public WebCache(String base, int minFileSize) {
         this.base = base;
@@ -27,9 +28,31 @@ public class WebCache {
         return new FileInputStream(file);
     }
     
+    private String getFileExt(String url) {
+        if(ext == null)
+            return "";
+
+        if(ext.equals("###")) {
+            int pos = url.lastIndexOf("?");
+            if(pos != -1)
+                url = url.substring(0,  pos);
+            if(url.lastIndexOf("/") > url.indexOf("//")+1) {            
+                int pos0 = url.lastIndexOf("/");
+                pos = url.lastIndexOf(".");
+                if(pos != -1 && pos > pos0)
+                    return url.substring(pos);
+            }
+            return "";
+        }
+        
+        return "." + ext;
+    }
+    
     public File fetch(String id, String url) throws Exception {
         if(id == null)
             id = MD5.md5(url);
+        id = id.trim();
+        url = url.trim();
         String subdir = null;
         if(id.length() < 3)
             subdir = id;
@@ -40,7 +63,7 @@ public class WebCache {
         File file = new File(base + "/" + subdir);
         if(!file.exists())
             file.mkdirs();
-        file = new File(base + "/" + subdir + "/" + id);
+        file = new File(base + "/" + subdir + "/" + id + getFileExt(url));
         if(file.exists() && file.length()>minFileSize) {
             System.err.println("web cache found for " + url);
             return file;
@@ -68,5 +91,13 @@ public class WebCache {
         }
         
         return file;
+    }
+
+    public String getExt() {
+        return ext;
+    }
+
+    public void setExt(String ext) {
+        this.ext = ext;
     }
 }

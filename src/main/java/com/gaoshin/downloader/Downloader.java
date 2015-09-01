@@ -7,38 +7,58 @@ import java.util.concurrent.Executors;
 
 public class Downloader {
     public static void main(String[] args) throws Exception {
+//        args = new String[]{"/tmp", "1", "###"};
         String base = args[0];
         
         int threads = 1;
         if(args.length>1)
             threads = Integer.parseInt(args[1]);
         
-        int miniFileSize = 1;
+        String ext = null;
         if(args.length>2)
-            miniFileSize = Integer.parseInt(args[2]);
+            ext = args[2];
         
-        new Downloader().run(base, threads, miniFileSize);
+        new Downloader().run(base, threads, ext);
     }
+
+    private int totalJobs = 0;
+    private int finishedJobs = 0;
     
-    
-    public void run(String base, int threads, int miniFileSize) throws Exception {
+    public void run(String base, int threads, String ext) throws Exception {
         ExecutorService executor = Executors.newFixedThreadPool(threads);
-        final WebCache webCache = new WebCache(base, miniFileSize);
+        final WebCache webCache = new WebCache(base, 1);
+        webCache.setExt(ext);
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
         while(true) {
             String line = br.readLine();
             if(line == null)
                 break;
             String[] items = line.split("\t");
-            String url = items[0];
+            String url = null;
+            int i = 0;
+            for(; i<items.length; i++) {
+                String s = items[i];
+                if(s.startsWith("http:") || s.startsWith("https:")) {
+                    url = s;
+                    break;
+                }
+            }
             String id = MD5.md5(url);
-            if(items.length>0)
-                id = items[1];
+            if(items.length>0) {
+                id = items[i==0 ? 1 : 0];
+            }
+            totalJobs++;
             executor.execute(new FetchJob(webCache, id, url));
         }
+        
+        while(totalJobs > finishedJobs) {
+            Thread.sleep(1000);
+        }
+        
+        executor.shutdown();
     }
     
-    static class FetchJob implements Runnable {
+    class FetchJob implements Runnable {
         private String id;
         private String url;
         private WebCache fetcher;
@@ -56,6 +76,9 @@ public class Downloader {
                 done = 1;
             } catch (Exception e) {
                 done = -1;
+            }
+            synchronized (Downloader.this) {
+                finishedJobs ++;
             }
         }
     }
