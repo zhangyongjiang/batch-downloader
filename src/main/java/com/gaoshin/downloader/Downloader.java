@@ -1,7 +1,9 @@
 package com.gaoshin.downloader;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.InputStreamReader;
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -29,6 +31,7 @@ public class Downloader {
         final WebCache webCache = new WebCache(base, 1);
         webCache.setExt(ext);
         BufferedReader br = new BufferedReader(new InputStreamReader(System.in));
+        int delay = delayMilliSecondsFromEnv();
         while(true) {
             String line = br.readLine();
             if(line == null)
@@ -47,12 +50,22 @@ public class Downloader {
             if(items.length>0) {
                 id = items[i==0 ? 1 : 0];
             }
+            
+            
+            FetchJob fetchJob = new FetchJob(webCache, id, url);
+            if(fetchJob.exists()) {
+                System.err.println("skip " + url);
+                continue;
+            }
+            executor.execute(fetchJob);
             totalJobs++;
-            executor.execute(new FetchJob(webCache, id, url));
+            if(delay > 0)
+                Thread.sleep(delay);
         }
         
         while(totalJobs > finishedJobs) {
-            Thread.sleep(1000);
+            System.err.println("Total jobs: " + totalJobs + ", finished jobs: " + finishedJobs + ", zero len files: " + webCache.getZeroLenFileCnt());
+            Thread.sleep(3000);
         }
         
         executor.shutdown();
@@ -81,5 +94,23 @@ public class Downloader {
                 finishedJobs ++;
             }
         }
+        
+        public boolean exists() {
+            File file = fetcher.getFile(id, url);
+            if(file.exists() && file.length() > 0) {
+                return true;
+            }
+            return false;
+        }
     }
+    
+    public static int delayMilliSecondsFromEnv() {
+        Map<String, String> env = System.getenv();
+        String value = env.get("delayMilliSeconds");
+        if(value == null)
+            return 0;
+        else
+            return Integer.parseInt(value);
+    }
+    
 }

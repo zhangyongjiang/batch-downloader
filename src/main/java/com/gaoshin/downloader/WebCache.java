@@ -10,6 +10,7 @@ public class WebCache {
     private String base;
     private int minFileSize;
     private String ext;
+    private int zeroLenFileCnt = 0;
     
     public WebCache(String base, int minFileSize) {
         this.base = base;
@@ -49,6 +50,58 @@ public class WebCache {
     }
     
     public File fetch(String id, String url) throws Exception {
+        File file = getFile(id, url);
+        if(file.exists() && file.length()>minFileSize) {
+            System.err.println("web cache found for " + url);
+            return file;
+        }
+        InputStream openStream = null;
+        FileOutputStream fw = null;
+        
+        int totalBytes = 0;
+        try {
+            openStream = new URL(url).openStream();
+            byte[] buff = new byte[8192];
+            fw = new FileOutputStream(file, false);
+            while(true) {
+                int len = openStream.read(buff);
+                if(len < 0)
+                    break;
+                totalBytes += len;
+                fw.write(buff, 0, len);
+            }
+        }
+        finally {
+            if(fw != null)
+                fw.close();
+            if(openStream != null)
+                openStream.close();
+            System.err.println("fetch content from " + url + ". total bytes: " + totalBytes);
+        }
+        
+        if(totalBytes == 0)
+            setZeroLenFileCnt(getZeroLenFileCnt() + 1);
+        
+        return file;
+    }
+
+    public String getExt() {
+        return ext;
+    }
+
+    public void setExt(String ext) {
+        this.ext = ext;
+    }
+
+    public int getZeroLenFileCnt() {
+        return zeroLenFileCnt;
+    }
+
+    public void setZeroLenFileCnt(int zeroLenFileCnt) {
+        this.zeroLenFileCnt = zeroLenFileCnt;
+    }
+
+    public File getFile(String id, String url) {
         if(id == null)
             id = MD5.md5(url);
         id = id.trim();
@@ -64,40 +117,6 @@ public class WebCache {
         if(!file.exists())
             file.mkdirs();
         file = new File(base + "/" + subdir + "/" + id + getFileExt(url));
-        if(file.exists() && file.length()>minFileSize) {
-            System.err.println("web cache found for " + url);
-            return file;
-        }
-        InputStream openStream = null;
-        FileOutputStream fw = null;
-        
-        try {
-            System.err.println("fetch content from " + url);
-            openStream = new URL(url).openStream();
-            byte[] buff = new byte[8192];
-            fw = new FileOutputStream(file, false);
-            while(true) {
-                int len = openStream.read(buff);
-                if(len < 0)
-                    break;
-                fw.write(buff, 0, len);
-            }
-        }
-        finally {
-            if(fw != null)
-                fw.close();
-            if(openStream != null)
-                openStream.close();
-        }
-        
         return file;
-    }
-
-    public String getExt() {
-        return ext;
-    }
-
-    public void setExt(String ext) {
-        this.ext = ext;
     }
 }
